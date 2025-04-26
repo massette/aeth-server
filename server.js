@@ -1,16 +1,21 @@
 const fs = require('fs');
+const slugify = require('slugify')
 
 const Koa = require('koa');
 const Router = require('@koa/router');
 const multer = require('@koa/multer');
 const cors = require('@koa/cors')
 
-const MAPS_DIR = __dirname + '\\public\\images\\';
-const MAPS_TYPES = {
-  png: "image/png",
-  jpeg: "image/jpeg", jpg: "image/jpeg",
+// file management
+const MAPS_DIR = __dirname + '/public/images/';
+
+// maps accepted MIME types to specific file extensions
+const FILE_TYPES = {
+  'image/png': 'png',
+  'image/jpeg': 'jpeg',
 };
 
+// regex
 const r_filename = /([^\\//]+)\.(.+)$/;
 
 /* Setup */
@@ -18,71 +23,70 @@ const r_filename = /([^\\//]+)\.(.+)$/;
 const app = new Koa();
 const router = new Router();
 
+// load map data
+let maps = {};
+
+try {
+  maps = fs.readFileSync('maps.json', 'utf8');
+} catch (error) {
+  if (error.code == 'ENOENT')
+    console.log('No existing maps directory.');
+  else
+    throw error;
+}
+
 // setup multer for uploads
 const upload = multer({
   storage: multer.diskStorage({
     destination: MAPS_DIR,
     filename: (req, file, cb) => {
       const parts = file.originalname.match(r_filename);
-      cb(null, `${(req.body.name ?? parts[1])}.${parts[2]}`);
+
+      // get name and id with defaults
+      const id = slugify(req.body.id ?? parts[1]).toLowerCase();
+      const name = req.body.name ?? id;
+      const ext = FILE_TYPES[file.mimetype];
+
+      // check for existing id
+      const old_map = maps[id]?.image.filename;
+
+      // create map object
+      maps[id] = {
+        id: id,
+        name: name,
+        image: {
+          filename: `${id}.${ext}`,
+          path: `/maps/${id}/`
+        }
+      };
+
+      // write image to disk
+      cb(null, `${id}.${ext}`);
+
+      // update map directory
+      fs.writeFile('maps.json', JSON.stringify(maps), 'utf8', (err) => {
+        if (err)
+          throw err;
+      });
+
+      // remove old map image if not overwritten
+      if (old_map && old_map != maps[id].image.filename)
+        console.log("UNLINK", old_map);
+        //fs.unlinkSync(MAPS_DIR + old_map);
     },
   })
 });
 
-/* Error Types */
-class MapFileError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "MapFileError";
-  }
-}
-
-/* Map Object */
-class Map {
-  constructor(filename) {
-    this.source = MAPS_DIR + filename;
-
-    const parts = filename.match(r_filename);
-
-    // return null on constructor fail
-    if (!parts)
-      throw new MapFileError(`Malformed filename`);
-
-    this.name = parts[1];
-
-    if (!MAPS_TYPES[parts[2]])
-      throw new MapFileError(`Invalid file extension .${match[2]}`);
-
-    this.type = MAPS_TYPES[parts[2]];
-  }
-}
-
-// enumerate maps on startup
-console.log(`Enumerating maps directory "${MAPS_DIR}"...`);
-
-const maps = fs.readdirSync(MAPS_DIR)
-  .reduce((acc, file) => {
-    try {
-      acc.push(new Map(file));
-    } catch (error) {
-      console.log(`Failed to load map, "${MAPS_DIR + file}": ${error.message}!`);
-    }
-
-    return acc;
-  }, []);
-
-console.log("Done.\n");
-
 /* API Endpoints */
-router.get('/maps', async context => {
+router.get('/maps', async (context, next) => {
   context.type = 'application/json';
   context.body = maps;
 
   await next();
 });
 
-router.get('/maps/:id', async context => {
-  const map = maps.find(map => (map.name === context.params.id));
+router.get('/maps/:id', async (context, next) => {
+  const map = maps.find(map => (map.id === context.params.id));
 
   if (map) {
     context.type = 'application/json';
@@ -95,7 +99,7 @@ router.get('/maps/:id', async context => {
   await next();
 });
 
-router.get('/maps/:id/image', async context => {
+router.get('/maps/:id/image', async (context, next) => {
   const map = maps.find(map => (map.name === context.params.id));
 
   // read map image from disk
@@ -105,18 +109,18 @@ router.get('/maps/:id/image', async context => {
   await next();
 });
 
-router.post('/maps', upload.single('image'), context => {
-  // image saved to disk, notify requester
+// todo: add endpoints to query and update screen mappings
+// GET /screens/ ?
+
+router.post('/maps', upload.single('image'), async (context, next) => {
   context.body = 'Done.';
   context.status = 200;
-  
-  // receive image from request
-  // find next available id
-  // save image to disk
-}, (err, context) => {
+
+  await next();
+}, (error, context) => {
   // image failed to save, notify requester
   context.status = 400;
-  context.body = err.message;
+  context.body = error.message;
 });
 
 router.put('/maps/:id', context => {

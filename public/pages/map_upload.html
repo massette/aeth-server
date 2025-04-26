@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Aether: Upload map</title>
+    </head>
+    <body>
+        <form id="map-form" action="http://localhost:3000/maps" method="POST" enctype="multipart/form-data">
+            <label for="map-name">Name: </label>
+            <input type="text" name="name" id="map-name" />
+            <br />
+
+            <label for="map-id">ID: </label>
+            <input type="text" name="id" id="map-id" />
+            <br />
+
+            <label for="map-image">Image:</label>
+            <input type="file" name="image" id="map-image" accept="image" required />
+            <br />
+
+            <input type="submit" />
+        </form>
+    </body>
+</html>
