@@ -1,3 +1,8 @@
 .*
 !.gitignore
 __pycache__
+
+public/images/*
+public/data/*
+
+maps.json
