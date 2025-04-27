@@ -7,9 +7,13 @@ import threading
 import time
 import json
 
-
 ####################################################################################
-CHILD_ADDR = "11.0.0.4:80" # todo: broadcast to all connected devices instead
+CHILD_ADDR = "http://localhost:5000" # todo: broadcast to all connected devices instead
+
+LEFT_VIEWPORT  = "{\"x\": 800, \"y\": 0, \"w\": 800, \"h\": 480}"
+RIGHT_VIEWPORT = "{\"x\": 0, \"y\": 0, \"w\": 800, \"h\": 480}"
+ABOVE_VIEWPORT = "{\"x\": 0, \"y\": 480, \"w\": 800, \"h\": 480}"
+BELOW_VIEWPORT = "{\"x\": 0, \"y\": 0, \"w\": 800, \"h\": 480}"
 
 ################################################################## MAPS DIRECTORY ##
 MAPS_DIR = os.path.abspath("public/images")
@@ -199,15 +203,15 @@ def route_map_image(id):
             with open(MAPS_DATA, "w") as maps_file:
                 json.dump(maps, maps_file)
 
-    if id in maps:
-        return send_file(
-            os.path.join(MAPS_DIR, maps[id]["filename"]),
-            mimetype = maps[id]["type"]
-        )
-    else:
+    if id not in maps:
         return "Map not found!", 404
 
-@app.route("/select/<id>", methods=["PUT"])
+    return send_file(
+        os.path.join(MAPS_DIR, maps[id]["filename"]),
+        mimetype = maps[id]["type"]
+    )
+
+@app.route("/select/<id>", methods=["POST", "PUT"])
 def route_select(id):
     # check that map exists
     if id not in maps:
@@ -216,21 +220,33 @@ def route_select(id):
     # send image to child devices
     path = os.path.join(MAPS_DIR, maps[id]["filename"])
     with open(path, "rb") as data:
-        compressed_data = gzip.compress(data)
+#        compressed_data = gzip.compress(data)
         res = requests.post(CHILD_ADDR + "/image", {
-            "data": compressed_data
+            "data": data
         })
     
     # load image
     original_image = pygame.image.load(path)
     return "Success!", 200
 
-@app.route("/viewport/update_pos", methods=["POST", "PUT"])
+@app.route("/update_pos", methods=["GET"])
 def route_viewport():
     # get orientation of child
+    side = requests.get(CHILD_ADDR + "/side").json()
 
-    # set viewport on child
-    # set viewport on parent
+    # set viewports
+    if side == "above":
+        requests.post(CHILD_ADDR + "/side", ABOVE_VIEWPORT)
+        viewport = BELOW_VIEWPORT
+    elif side == "below":
+        requests.post(CHILD_ADDR + "/side", BELOW_VIEWPORT)
+        viewport = ABOVE_VIEWPORT
+    elif side == "left":
+        requests.post(CHILD_ADDR + "/side", LEFT_VIEWPORT)
+        viewport = RIGHT_VIEWPORT
+    elif side == "right":
+        requests.post(CHILD_ADDR + "/side", RIGHT_VIEWPORT)
+        viewport = LEFT_VIEWPORT
 
     return "Success!", 200
 
@@ -238,8 +254,8 @@ def update_image():
     screen.blit(original_image, (0,0), (viewport["x"], viewport["y"], viewport["w"], viewport["h"]))
     pygame.display.update()
 
-#if __name__ == "__main__":
-#    threading.Thread(target = lambda: app.run(port=80)).start()
+if __name__ == "__main__":
+    threading.Thread(target = lambda: app.run(port=80)).start()
 
 while True:
     time.sleep(0.1)
