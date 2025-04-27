@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Aether: Upload map</title>
+        <style>
+            .maps-select {
+                border: 1px solid black;
+                padding: 8px;
+
+                display: grid;
+                grid-template-columns: 30rem auto;
+                gap: 8px;
+                grid-template-areas: "a b";
+                align-items: center;
+
+                cursor: pointer;
+            }
+
+            .maps-select .thumnail {
+                grid-area: a;
+            }
+        </style>
+    </head>
+    <body >
+        <script>
+            async function select(id) {
+                await fetch(`/select/${id}`, { method: 'PUT' });
+            }
+
+            async function update_pos(side) {
+                await fetch(`/update_pos`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: `"${side}"`,
+                });
+            }
+
+            window.onload = async () => {
+                const response = await fetch('/maps', {
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const maps = await response.json();
+                let content = '';
+
+                for (const id in maps) {
+                    content += `<div class="maps-select" onclick="select('${id}')">
+                        <img class="thumbnail" src="${maps[id]['endpoint']}/image" />
+                        <span class="name">${maps[id]['name']} [${maps[id]["id"]}]</span>
+                    </div>`;
+
+                    // todo:change ["endpoint"] to ["image"] server-side
+                }
+
+                const elem = document.getElementById('maps-list');
+                elem.innerHTML = content;
+            }
+        </script>
+
+        <label>Maps:</label>
+        <div id="maps-list" onload="get_maps()">
+            Loading...
+        </div>
+        <br />
+        
+        <hr>
+        <label>Orientation:</label>
+        <div id="map-buttons">
+            <button onclick="update_pos('split')">Split</button>
+            <button onclick="update_pos('left')">Left</button>
+            <button onclick="update_pos('right')">Right</button>
+            <button onclick="update_pos('above')">Above</button>
+            <button onclick="update_pos('below')">Below</button>
+            <button onclick="update_pos()">Auto</button>
+        </div>
+        <br />
+
+        <hr>
+
+        <form id="map-form" action="/maps" method="POST" enctype="multipart/form-data">
+            <label for="map-name">Name: </label>
+            <input type="text" name="name" id="map-name" />
+            <br />
+
+            <label for="map-id">ID: </label>
+            <input type="text" name="id" id="map-id" />
+            <br />
+
+            <label for="map-image">Image:</label>
+            <input type="file" name="image" id="map-image" accept="image" required />
+            <br />
+            <br />
+
+            <input type="submit" />
+        </form>
+    </body>
+</html>

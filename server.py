@@ -1,5 +1,5 @@
 import os, os.path
-from flask import Flask, request, redirect, send_file
+from flask import Flask, request, redirect, send_file, send_from_directory
 import requests
 import gzip
 import pygame
@@ -45,6 +45,11 @@ try:
     print("Read maps directory.")
 except FileNotFoundError:
     print("No existing maps directory.")
+
+############################################################### SERVE UPLOAD PAGE ##
+@app.route("/", methods=["GET"])
+def route_home():
+    return send_from_directory(os.path.abspath("public/pages/"), "upload.html");
 
 ################################################################### API ENDPOINTS ##
 @app.route("/maps", methods=["POST", "GET"])
